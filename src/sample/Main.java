@@ -55,6 +55,8 @@ public class Main extends Application {
     private List<Circle> deleteList = new ArrayList<>();
     private Group group;
     HashSet<Integer> liberty = new HashSet<>();
+    private int jie1//former delete
+            ,jie2;//former add
 
     private void clear(){
         allGroup.clear();
@@ -107,8 +109,14 @@ public class Main extends Application {
                 int result =  mergeSameColorAndDecDiff(chessman);
                 if(result == 2){
                     System.err.println("�����ڸ�λ������");
-                    for (ChessGroup chessGroup:allGroup)
-                        System.out.println(chessGroup);
+//                    for (ChessGroup chessGroup:allGroup)
+//                        System.out.println(chessGroup);
+                    return;
+                }
+                else if(result == 3){
+                    System.err.println("da jie");
+//                    for (ChessGroup chessGroup:allGroup)
+//                        System.out.println(chessGroup);
                     return;
                 }
                 //add gui circle
@@ -118,6 +126,16 @@ public class Main extends Application {
                 setStroke(circle);
                 cs[position.i][position.j]=circle;
                 root.getChildren().add(circle);
+                if(needDelete.size()==1&&needDelete.peek().chessmanList.size()==1) {
+                    //mark status 'jie'
+                    Chessman chessman1 = needDelete.peek().chessmanList.get(0);
+                    jie1 = _2to1(chessman1.x,chessman1.y);
+                    jie2 = _2to1(chessman.x,chessman.y);
+                }
+                else{
+                    jie1 = -1;
+                    jie2 = -1;
+                }
                 while(needDelete.size()>0){
                     remove(needDelete.pop());
                 }
@@ -219,14 +237,20 @@ public class Main extends Application {
         for (ChessGroup chessGroup:sameColor){
             mergedLiberty = mergedLiberty+chessGroup.liberty-1;
         }
-        boolean hasDeleteSomething = false;
+        List<ChessGroup> deleteList = new ArrayList<>();
         for (ChessGroup chessGroup:diffColor)
             if (chessGroup.liberty -1 == 0) {
-                hasDeleteSomething = true;
-                break;
+                deleteList.add(chessGroup);
             }
-        if (!hasDeleteSomething&&mergedLiberty == 0)
+        //status 2-> cant suicide
+        if (deleteList.size()==0&&mergedLiberty == 0)
             return 2;
+        //status 3 -> da jie
+        if (deleteList.size()==1&&deleteList.get(0).chessmanList.size()==1) {
+            Chessman chessman1 = deleteList.get(0).chessmanList.get(0);
+            if (_2to1(chessman1.x,chessman1.y) == jie2&&_2to1(chessman.x,chessman.y)==jie1)
+                return 3;
+        }
         //second do change
         allGroup.add(chessmanGroup);
         chessmenArray[x][y] = chessman;
