@@ -10,7 +10,6 @@ import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
 import javafx.scene.shape.StrokeType;
 import javafx.stage.Stage;
-import org.omg.PortableInterceptor.INACTIVE;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -107,7 +106,7 @@ public class Main extends Application {
                 Chessman chessman = new Chessman(position.i,position.j,nextStep?0:1,liberty);
                 int result =  mergeSameColorAndDecDiff(chessman);
                 if(result == 2){
-                    System.err.println("²»ÄÜÔÚ¸ÃÎ»ÖÃÂä×Ó");
+                    System.err.println("ï¿½ï¿½ï¿½ï¿½ï¿½Ú¸ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½");
                     for (ChessGroup chessGroup:allGroup)
                         System.out.println(chessGroup);
                     return;
@@ -191,6 +190,8 @@ public class Main extends Application {
     }
 
     private int mergeSameColorAndDecDiff(Chessman chessman) {
+        sameColor.clear();
+        diffColor.clear();
         int x = chessman.x,y = chessman.y;
         ChessGroup chessmanGroup = chessman.chessGroup;
         if((x-1)>=0&&chessmenArray[x-1][y]!=null)
@@ -241,12 +242,11 @@ public class Main extends Application {
                 allGroup.remove(chessGroup);
             }
         }
-        sameColor.clear();
-        diffColor.clear();
+
         return 1;
     }
 
-    //¼ÆËãÕâ¸ö×ÓÓÐ¼¸¿ÚÆø
+    //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð¼ï¿½ï¿½ï¿½ï¿½ï¿½
     private int getLiberty(int x,int y) {
         int liberty = 0 ;
         if((x-1)>=0&&chessmenArray[x-1][y]==null)
@@ -260,24 +260,24 @@ public class Main extends Application {
         return liberty;
     }
 
-    //ÉèÖÃÔ²±ß½ç
+    //ï¿½ï¿½ï¿½ï¿½Ô²ï¿½ß½ï¿½
     private void setStroke(Circle circle){
         circle.setStrokeType(StrokeType.INSIDE);
         circle.setStroke(Color.BLACK);
         circle.setStrokeWidth(1);
     }
-    //¼ÆËãÏàÁÚ×î½üµãµÄÏà¶Ô×ø±ê
+    //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     private Tuple getClosestPosition(Tuple tuple){
         int row = tuple.i/gap+(tuple.i%gap<gap/2?-1:0);
         int col = tuple.j/gap+(tuple.j%gap<gap/2?-1:0);
         return new Tuple(row,col);
     }
-    //¸ù¾Ý×ø±ê¼ÆËãxy×ø±ê
+    //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½xyï¿½ï¿½ï¿½ï¿½
     private Tuple getCoordinate(Tuple tuple){
         return new Tuple(tuple.i*gap+st,tuple.j*gap+st);
     }
 
-    //Î»ÖÃÊÇ·ñÂäÓÚÆåÅÌÄÚ
+    //Î»ï¿½ï¿½ï¿½Ç·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     private boolean validPosition(Tuple position){
         return (position.i>=0&&position.i<=18&&position.j>=0&&position.j<=18&&cs[position.i][position.j]==null);
     }
