@@ -9,12 +9,4 @@ public class Tuple {
         this.i = i;
         this.j = j;
     }
-
-    @Override
-    public String toString() {
-        return "Tuple{" +
-                "i=" + i +
-                ", j=" + j +
-                '}';
-    }
 }

@@ -1,5 +1,8 @@
 package bloodborne;
+import sample.Constants;
+
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 /**
  * Created by xudabiao on 2017/2/8.
@@ -8,33 +11,39 @@ public class ChessGroup {
     public int liberty;
     public int color;
     public List<Chessman> chessmanList;
+    private Board board;
 
-    public ChessGroup(int color,int liberty,Chessman chessman) {
+    public ChessGroup(int color, Chessman chessman, Board board) {
         this.color = color;
-        this.liberty = liberty;
-        this.chessmanList = new ArrayList<>();
+        chessmanList = new ArrayList<>();
         chessmanList.add(chessman);
+        this.board = board;
+        calc();
     }
 
-    //Á½¿éÍ¬É«µÄÆåºÏ²¢ÎªÒ»¿é
+    //ä¸¤å—åŒè‰²çš„æ£‹åˆå¹¶ä¸ºä¸€å—
     public void merge(ChessGroup chessGroup){
-        if(this.color != chessGroup.color)
-            throw new IllegalStateException("Different color!");
         chessmanList.addAll(chessGroup.chessmanList);
-        for(Chessman chessman:chessGroup.chessmanList)
+        for(Chessman chessman : chessGroup.chessmanList)
             chessman.chessGroup = this;
     }
-    //¼õÒ»¿ÚÆø
-    public void decLibertyBy1(){
-        this.liberty--;
-    }
 
-    @Override
-    public String toString() {
-        return "ChessGroup{" +
-                "liberty=" + liberty +
-                ", color=" + color +
-                ", chessmanList=" + chessmanList +
-                '}';
+    /**
+     * è®¡ç®—è¯¥æ£‹å—çš„æ°”
+     */
+    public void calc() {
+        int x = 0, y = 0;
+        HashSet<String> set = new HashSet();
+        int nx, ny;
+        for (Chessman chessman : chessmanList){
+            for (int[] direction : Constants.DIRECTIONS) {
+                nx = chessman.x + direction[0];
+                ny = chessman.y + direction[1];
+                if (nx >= 0 && nx < Constants.ROWS && ny >= 0 && ny < Constants.ROWS && board.chessmenArray[nx][ny] == null){
+                    set.add(nx+"-"+ny);
+                }
+            }
+        }
+        liberty = set.size();
     }
 }

@@ -1,327 +1,229 @@
 package sample;
 
-import bloodborne.ChessGroup;
-import bloodborne.Chessman;
+import bloodborne.Board;
 import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.collections.ObservableList;
+import javafx.event.ActionEvent;
+import javafx.event.EventHandler;
+import javafx.geometry.Pos;
 import javafx.scene.Group;
+import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.Label;
+import javafx.scene.control.MenuItem;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
 import javafx.scene.shape.StrokeType;
 import javafx.stage.Stage;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Stack;
+import java.sql.Time;
+import java.util.LinkedList;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+import static sample.Constants.*;
 
 public class Main extends Application {
 
-    private static int gap = 40;
+    /**
+     * 所有的棋子
+     * 提前new 所有 Circle 对象
+     * 通过设置颜色和visible属性来改变
+     */
+    private Circle[][] cs = new Circle[ROWS][ROWS];
+    private Label[][] csl = new Label[ROWS][ROWS];
 
-    private static int dot_radius = 5;
+    /**
+     * 主处理
+     */
+    private Board board = new Board();
 
-    private static int chess_piece = 18;
+    private Label error1, error2;
 
-    private static int rows = 19;
+    private ScheduledExecutorService service = Executors.newScheduledThreadPool(1);
 
-    private static int dots = 9;
-
-    private static int width = 800;
-
-    private static int height = 800;
-
-    private static int st = (width-(rows-1)*gap)/2;
-
-    private static int ed = width-st;
-
-    private static Tuple[] dotArray = {
-            new Tuple(3,3),new Tuple(3,9),new Tuple(3,15),
-            new Tuple(9,3),new Tuple(9,9),new Tuple(9,15),
-            new Tuple(15,3),new Tuple(15,9),new Tuple(15,15)
-    };
-
-    private Circle[][] cs = new Circle[rows][rows];
-
-    private Chessman[][] chessmenArray = new Chessman[rows][rows];
-    //true -> black,false->white(start with true)
-    private boolean nextStep = true;
-
-    private HashSet<ChessGroup> sameColor = new HashSet<>();
-    private HashSet<ChessGroup> diffColor = new HashSet<>();
-    private HashSet<ChessGroup> allGroup = new HashSet<>();
-    private Stack<ChessGroup> needDelete = new Stack<>();
-    private List<Circle> deleteList = new ArrayList<>();
-    private Group group;
-    HashSet<Integer> liberty = new HashSet<>();
-    private int jie1//former delete
-            ,jie2;//former add
-
-    private void clear(){
-        allGroup.clear();
-        for (int i =0 ;i<rows;i++)
-            for (int j = 0; j <rows ; j++) {
-                group.getChildren().remove(cs[i][j]);
-                cs[i][j]=null;
-                chessmenArray[i][j] = null;
-        }
-
-    }
+    private LinkedList<Tuple> records = new LinkedList();
+    //用于前后进，在records范围内
+    private int step = 0;
 
     @Override
     public void start(Stage stage) {
         Group root = new Group();
-        group = root;
         stage.setTitle("Go");
-        Scene scene = new Scene(root, width, height);
+        Scene scene = new Scene(root, WIDTH, WIDTH);
         stage.setResizable(false);
-        List<Line> LineList = new ArrayList<>(rows);
-        List<Circle> dotList = new ArrayList<>(dots);
-        int cr = st;
-        //paint line
-        for (int i = 0; i < rows; i++) {
-            LineList.add(new Line(st,cr,ed,cr));
-            LineList.add(new Line(cr,st,cr,ed));
-            cr+=gap;
-        }
-        //paint dot
-        for (Tuple tuple:dotArray) {
-            Tuple xy = getCoordinate(tuple);
-            Circle circle = new Circle(xy.i,xy.j,dot_radius);
-            circle.setFill(Color.BLACK);
-            dotList.add(circle);
-        }
-        //vitual circle
-        Circle vitual = new Circle();
-        vitual.setRadius(chess_piece);
-        vitual.setVisible(false);
-        setStroke(vitual);
+        paintBoard(root);
+        //当鼠标移动时的虚拟棋子，用来显示落子点
+        Circle vitual = newCircle(null, null, false);
         root.getChildren().add(vitual);
-        //
-        scene.setOnMouseClicked((event)->{
-            System.out.println(Thread.currentThread());
-            Tuple position = getClosestPosition(new Tuple((int)event.getX(),(int)event.getY()));
-            if (validPosition(position)){
-                int x = position.i,y = position.j;
-                int liberty = getLiberty(x,y);
-                Chessman chessman = new Chessman(position.i,position.j,nextStep?0:1,liberty);
-                int result =  mergeSameColorAndDecDiff(chessman);
-                if(result == 2){
-                    System.err.println("�����ڸ�λ������");
-//                    for (ChessGroup chessGroup:allGroup)
-//                        System.out.println(chessGroup);
-                    return;
-                }
-                else if(result == 3){
-                    System.err.println("da jie");
-//                    for (ChessGroup chessGroup:allGroup)
-//                        System.out.println(chessGroup);
-                    return;
-                }
-                //add gui circle
-                Tuple coord = getCoordinate(position);
-                Circle circle = new Circle(coord.i,coord.j,chess_piece);
-                circle.setFill(getColorAndReverse());
-                setStroke(circle);
-                cs[position.i][position.j]=circle;
-                root.getChildren().add(circle);
-                if(needDelete.size()==1&&needDelete.peek().chessmanList.size()==1) {
-                    //mark status 'jie'
-                    Chessman chessman1 = needDelete.peek().chessmanList.get(0);
-                    jie1 = _2to1(chessman1.x,chessman1.y);
-                    jie2 = _2to1(chessman.x,chessman.y);
-                }
-                else{
-                    jie1 = -1;
-                    jie2 = -1;
-                }
-                while(needDelete.size()>0){
-                    remove(needDelete.pop());
-                }
-                for (ChessGroup chessGroup:allGroup)
-                    System.out.println(chessGroup);
-            }
-        });
-        //
         scene.setOnMouseMoved((event)->{
             Tuple position = getClosestPosition(new Tuple((int)event.getX(),(int)event.getY()));
             if (validPosition(position)){
                 Tuple coord = getCoordinate(position);
                 vitual.setCenterX(coord.i);
                 vitual.setCenterY(coord.j);
-                vitual.setFill(getColor());
+                vitual.setFill(getColor(board.records.size()));
                 vitual.setVisible(true);
             }else{
                 vitual.setVisible(false);
             }
         });
-//        scene.setOnKeyTyped((event) -> {
-//            System.out.println(event.getCharacter());
-//        });
-//        scene.setOnKeyPressed((event) -> {
-//            System.out.println(event.getCharacter());
-//        });
+        //落子的逻辑
+        scene.setOnMouseClicked((event)->{
+            Tuple position = getClosestPosition(new Tuple((int)event.getX(),(int)event.getY()));
+            if (validPosition(position)){
+                vitual.setVisible(false);
+                String msg = board.addMove(position, step);
+                if (!OK.equals(msg)){
+                    Label label = ERROR_TYPE_1.equals(msg) ? error1 : error2;
+                    label.setVisible(true);
+                    service.schedule(() -> Platform.runLater(() -> label.setVisible(false)), 1, TimeUnit.SECONDS);
+                    return;
+                }
+                while (step < records.size()){
+                    records.pollLast();
+                }
+                records.add(position);
+                step = records.size();
+                render();
+            }
+        });
+        scene.setOnKeyPressed(event -> {
+            if ("Left".equals(event.getCode().getName())){
+                if (step > 0) {
+                    board = board.revert();
+                    step--;
+                    render();
+                }
+            }
+            else if ("Right".equals(event.getCode().getName())){
+                if (step < records.size()) {
+                    board.addMove(records.get(step), step);
+                    step++;
+                    render();
+                }
+            }
+            else if ("Up".equals(event.getCode().getName())) {
+                System.out.println("UUUp");
+                board = new Board();
+                step = 0;
+                render();
+            }
+            else if ("Down".equals(event.getCode().getName())){
+                while (board.records.size() > 0){
+                    board = board.revert();
+                    render();
+                    try {
+                        TimeUnit.MILLISECONDS.sleep(500);
+                    }catch (Exception e){}
+                }
+            }
+        });
         stage.setScene(scene);
-        root.getChildren().addAll(LineList);
-        root.getChildren().addAll(dotList);
+        stage.setOnCloseRequest(event -> service.shutdownNow());
         stage.show();
     }
 
-    private void remove(ChessGroup chessGroup) {
-        for(Chessman chessman:chessGroup.chessmanList){
-            deleteList.add(cs[chessman.x][chessman.y]);
-            cs[chessman.x][chessman.y] = null;
-            chessmenArray[chessman.x][chessman.y] = null;
-        }
-        group.getChildren().removeAll(deleteList);
-        deleteList.clear();
-        recalculLiberty(Math.abs(chessGroup.color-1));
-    }
-
-    private void recalculLiberty(int color){
-        for(ChessGroup chessGroup:allGroup)
-            if(chessGroup.color == color)
-                recalculLiberty(chessGroup);
-    }
-
-    private void recalculLiberty(ChessGroup chessGroup) {
-        int x = 0,y = 0;
-        for (Chessman chessman:chessGroup.chessmanList){
-            x = chessman.x;
-            y = chessman.y;
-            if((x-1)>=0&&chessmenArray[x-1][y]==null)
-                liberty.add(_2to1(x-1,y));
-            if((x+1)<=18&&chessmenArray[x+1][y]==null)
-                liberty.add(_2to1(x+1,y));
-            if((y-1)>=0&&chessmenArray[x][y-1]==null)
-                liberty.add(_2to1(x,y-1));
-            if((y+1)<=18&&chessmenArray[x][y+1]==null)
-                liberty.add(_2to1(x,y+1));
-        }
-        chessGroup.liberty = liberty.size();
-        liberty.clear();
-    }
-
-    private int _2to1(int i,int j){
-        return 100*i+j;
-    }
-
-    private int mergeSameColorAndDecDiff(Chessman chessman) {
-        sameColor.clear();
-        diffColor.clear();
-        int x = chessman.x,y = chessman.y;
-        ChessGroup chessmanGroup = chessman.chessGroup;
-        if((x-1)>=0&&chessmenArray[x-1][y]!=null)
-            if(chessmenArray[x-1][y].chessGroup.color == chessman.chessGroup.color)
-                sameColor.add(chessmenArray[x-1][y].chessGroup);
-            else
-                diffColor.add(chessmenArray[x-1][y].chessGroup);
-        if((y-1)>=0&&chessmenArray[x][y-1]!=null)
-            if(chessmenArray[x][y-1].chessGroup.color == chessman.chessGroup.color)
-                sameColor.add(chessmenArray[x][y-1].chessGroup);
-            else
-                diffColor.add(chessmenArray[x][y-1].chessGroup);
-        if((x+1)<=18&&chessmenArray[x+1][y]!=null)
-            if(chessmenArray[x+1][y].chessGroup.color == chessman.chessGroup.color)
-                sameColor.add(chessmenArray[x+1][y].chessGroup);
-            else
-                diffColor.add(chessmenArray[x+1][y].chessGroup);
-        if((y+1)<=18&&chessmenArray[x][y+1]!=null)
-            if(chessmenArray[x][y+1].chessGroup.color == chessman.chessGroup.color)
-                sameColor.add(chessmenArray[x][y+1].chessGroup);
-            else
-                diffColor.add(chessmenArray[x][y+1].chessGroup);
-        //first test
-        int mergedLiberty = chessmanGroup.liberty;
-        for (ChessGroup chessGroup:sameColor){
-            mergedLiberty = mergedLiberty+chessGroup.liberty-1;
-        }
-        List<ChessGroup> deleteList = new ArrayList<>();
-        for (ChessGroup chessGroup:diffColor)
-            if (chessGroup.liberty -1 == 0) {
-                deleteList.add(chessGroup);
-            }
-        //status 2-> cant suicide
-        if (deleteList.size()==0&&mergedLiberty == 0)
-            return 2;
-        //status 3 -> da jie
-        if (deleteList.size()==1&&deleteList.get(0).chessmanList.size()==1) {
-            Chessman chessman1 = deleteList.get(0).chessmanList.get(0);
-            if (_2to1(chessman1.x,chessman1.y) == jie2&&_2to1(chessman.x,chessman.y)==jie1)
-                return 3;
-        }
-        //second do change
-        allGroup.add(chessmanGroup);
-        chessmenArray[x][y] = chessman;
-        for (ChessGroup chessGroup:sameColor){
-            chessmanGroup.merge(chessGroup);
-            allGroup.remove(chessGroup);
-        }
-        recalculLiberty(chessmanGroup);
-        for (ChessGroup chessGroup:diffColor) {
-            chessGroup.decLibertyBy1();
-            if(chessGroup.liberty==0) {
-                needDelete.push(chessGroup);
-                allGroup.remove(chessGroup);
+    private void render() {
+        for (int i = 0; i < cs.length; i++) {
+            for (int j = 0; j < cs[0].length; j++) {
+                if (board.chessmenArray[i][j] == null){
+                    cs[i][j].setVisible(false);
+//                    csl[i][j].setVisible(false);
+                }
+                else{
+                    cs[i][j].setFill(getColor(board.chessmenArray[i][j].color));
+                    cs[i][j].setVisible(true);
+//                    csl[i][j].setText(board.chessmenArray[i][j].number+"");
+//                    csl[i][j].setTextFill(getColor(1-board.chessmenArray[i][j].color));
+//                    csl[i][j].setVisible(true);
+                }
             }
         }
-
-        return 1;
     }
 
-    //����������м�����
-    private int getLiberty(int x,int y) {
-        int liberty = 0 ;
-        if((x-1)>=0&&chessmenArray[x-1][y]==null)
-            liberty++;
-        if((x+1)<=18&&chessmenArray[x+1][y]==null)
-            liberty++;
-        if((y-1)>=0&&chessmenArray[x][y-1]==null)
-            liberty++;
-        if((y+1)<=18&&chessmenArray[x][y+1]==null)
-            liberty++;
-        return liberty;
+    /**
+     * 绘制棋盘
+     * 1。棋盘线
+     * 2。星位
+     * 3。每个棋子【隐藏且不着色】
+     * @param root
+     */
+    private void paintBoard(Group root) {
+        ObservableList<Node> list = root.getChildren();
+        int cr = START;
+        //画线
+        for (int i = 0; i < ROWS; i++) {
+            list.add(new Line(START, cr, END, cr));
+            list.add(new Line(cr, START, cr, END));
+            cr += GAP;
+        }
+        //画星位
+        for (Tuple tuple : DOT_ARRAY) {
+            Tuple xy = getCoordinate(tuple);
+            Circle circle = new Circle(xy.i, xy.j, DOT_R);
+            circle.setFill(Color.BLACK);
+            list.add(circle);
+        }
+        //棋子
+        for (int i = 0; i < cs.length; i++) {
+            for (int j = 0; j < cs.length; j++) {
+                Tuple tuple = getCoordinate(new Tuple(i, j));
+                cs[i][j] = newCircle(tuple.i, tuple.j, false);
+                csl[i][j] = new Label();
+                csl[i][j].setLayoutX(tuple.i-GAP/4);
+                csl[i][j].setLayoutY(tuple.j-GAP/4);
+                csl[i][j].setVisible(false);
+                root.getChildren().add(cs[i][j]);
+                root.getChildren().add(csl[i][j]);
+            }
+        }
+        //提示
+        error1 = new Label(ERROR_TYPE_1);
+        error2 = new Label(ERROR_TYPE_2);
+        error1.setVisible(false);
+        error2.setVisible(false);
+        root.getChildren().add(error1);
+        root.getChildren().add(error2);
     }
 
-    //����Բ�߽�
-    private void setStroke(Circle circle){
+    private Circle newCircle(Integer x, Integer y, boolean visible){
+        Circle circle = new Circle();
+        if (x != null)
+            circle.setCenterX(x);
+        if (y != null)
+            circle.setCenterY(y);
+        circle.setRadius(CHESS_R);
+        circle.setVisible(visible);
+        //设置圆环的边框为黑
         circle.setStrokeType(StrokeType.INSIDE);
         circle.setStroke(Color.BLACK);
         circle.setStrokeWidth(1);
+        return circle;
     }
-    //���������������������
+    //根据鼠标位置获得数组坐标
     private Tuple getClosestPosition(Tuple tuple){
-        int row = tuple.i/gap+(tuple.i%gap<gap/2?-1:0);
-        int col = tuple.j/gap+(tuple.j%gap<gap/2?-1:0);
+        int row = tuple.i / GAP + (tuple.i % GAP < GAP / 2? -1:0);
+        int col = tuple.j / GAP + (tuple.j % GAP < GAP / 2? -1:0);
         return new Tuple(row,col);
     }
-    //�����������xy����
+    //根据数组坐标获得像素坐标
     private Tuple getCoordinate(Tuple tuple){
-        return new Tuple(tuple.i*gap+st,tuple.j*gap+st);
+        return new Tuple(tuple.i * GAP + START,tuple.j * GAP + START);
     }
 
-    //λ���Ƿ�����������
     private boolean validPosition(Tuple position){
-        return (position.i>=0&&position.i<=18&&position.j>=0&&position.j<=18&&cs[position.i][position.j]==null);
+        return position.i >= 0 && position.i < ROWS && position.j >= 0 && position.j < ROWS && board.chessmenArray[position.i][position.j] == null;
     }
 
-    private Color getColorAndReverse(){
-        Color color = getColor();
-        reverseColor();
-        return color;
+    private Color getColor(int p){
+        return p % 2 == 0 ? Color.BLACK : Color.WHITE;
     }
 
-    private Color getColor(){
-        return nextStep?Color.BLACK:Color.WHITE;
-    }
-
-    private void reverseColor(){
-        nextStep = !nextStep;
-    }
-    /**
-     * @param args the command line arguments
-     */
     public static void main(String[] args) {
         launch(args);
     }
